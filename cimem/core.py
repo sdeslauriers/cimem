@@ -54,6 +54,13 @@ class Cluster(DiscreteRandomVariable):
                              'to 0.')
         self._sample = sample
 
+        # Add default values for the priors.
+        self._priors = (
+            GaussianPrior(np.zeros((self.nb_sources,)),
+                          0.1 * np.eye(self.nb_sources)),
+            GaussianPrior(np.ones((self.nb_sources,)),
+                          0.1 * np.eye(self.nb_sources)))
+
     @property
     def name(self) -> str:
         """Returns the name of the cluster"""
@@ -65,6 +72,62 @@ class Cluster(DiscreteRandomVariable):
         return self._sample
 
     @property
+    def nb_sources(self):
+        """Returns the number of sources of the cluster"""
+        return len(self._sources)
+
+    @property
     def sources(self) -> np.ndarray:
         """Returns the source ids of the cluster"""
         return self._sources
+
+
+class GaussianPrior(object):
+    def __init__(self, mean: Sequence, variance: Sequence):
+        """Gaussian prior on source intensities
+
+        The cimem.GaussianPrior class represents the Gaussian priors on the
+        intensities of a cluster of sources.
+
+        Args:
+            mean: The mean of each source of the cluster. Must be
+                convertible to an array of floats with a shape of (N,).
+            variance: The variance of the sources of the cluster. Must be
+            convertible to an array of floats with a shape of (N, N).
+
+        """
+
+        try:
+            mean = np.array(mean, np.float64)
+        except (TypeError, ValueError):
+            raise TypeError('The mean must be convertible to an array of '
+                            'floats.')
+
+        if mean.ndim != 1:
+            raise ValueError('The mean must have a shape of (N,), not {}.'
+                             .format(mean.shape))
+
+        try:
+            variance = np.array(variance, np.float64)
+        except (TypeError, ValueError):
+            raise TypeError('The variance must be convertible to an array of '
+                            'floats.')
+
+        if variance.ndim != 2 or variance.shape[0] != variance.shape[1]:
+            raise ValueError('The mean must have a shape of (N, N), not {}.'
+                             .format(variance.shape))
+
+        # The shape of the mean and variance must match.
+        if mean.shape[0] != variance.shape[0]:
+            raise ValueError('The shape of the mean and variance must match '
+                             '({} != {}).'
+                             .format(mean.shape[0], variance.shape[0]))
+
+        self._mean = mean
+        self._variance = variance
+
+    def evaluate(self, x):
+        """Evaluates the priors at x"""
+
+        return np.exp(np.dot(x, self._mean) +
+                      0.5 * np.dot(np.dot(x, self._variance), x))
