@@ -10,5 +10,5 @@ setup(
     author_email='sam.deslauriers@gmail.com',
     description='A Python package that implements Connectivity Informed '
                 'Maximum Entropy on the Mean (CIMEM)',
-    install_requires=['numpy', 'bayesnet']
+    install_requires=['numpy', 'bayesnet', 'scipy']
 )
