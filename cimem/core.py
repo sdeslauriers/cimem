@@ -2,7 +2,7 @@ from typing import Sequence
 
 import numpy as np
 
-from bayesnet import DiscreteRandomVariable
+from bayesnet import DiscreteRandomVariable, ProbabilityMassFunction
 
 
 class Cluster(DiscreteRandomVariable):
@@ -67,6 +67,11 @@ class Cluster(DiscreteRandomVariable):
         return self._name
 
     @property
+    def priors(self):
+        """Returns the priors of the cluster"""
+        return self._priors
+
+    @property
     def sample(self):
         """Returns the sample number of the cluster"""
         return self._sample
@@ -126,8 +131,29 @@ class GaussianPrior(object):
         self._mean = mean
         self._variance = variance
 
-    def evaluate(self, x):
-        """Evaluates the priors at x"""
+    def __call__(self, lagrange: np.ndarray):
+        """Evaluates the prior at the Lagrange multipliers
 
-        return np.exp(np.dot(x, self._mean) +
-                      0.5 * np.dot(np.dot(x, self._variance), x))
+        Evaluates the prior at the Lagrange multipliers and returns both its
+        value and its gradient divided by the value.
+
+        For a Gaussian prior, this is:
+
+            value = exp(L^t * m + 0.5 * L^t * v * L)
+
+            gradient = (m + v * L) * exp(L^t * m + 0.5 * L^t * v * L) / value
+                     = m + v * L
+
+        where m in the mean, v is the variance and L is the Lagrange
+        multiplier.
+
+        Args:
+            lagrange: The Lagrange multipliers where the prior is evaluated.
+
+        """
+
+        temp = np.dot(self._variance, lagrange)
+        value = np.exp(np.dot(lagrange, self._mean) +
+                       0.5 * np.dot(lagrange, temp))
+
+        return value, self._mean + temp

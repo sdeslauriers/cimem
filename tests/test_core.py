@@ -58,5 +58,6 @@ class TestGaussianPrior(unittest.TestCase):
         """Test the evaluate method"""
 
         prior = cimem.core.GaussianPrior(np.ones((2,)), np.eye(2))
-        value = prior.evaluate([1, 1])
+        value, gradient = prior(np.array([1, 1]))
         self.assertAlmostEqual(value, np.exp(3))
+        np.testing.assert_array_almost_equal(gradient, [2, 2])
