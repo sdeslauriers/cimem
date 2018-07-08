@@ -1,12 +1,13 @@
-from typing import Sequence
+from typing import Sequence, Tuple
 
 import numpy as np
 
-from bayesnet import DiscreteRandomVariable, ProbabilityMassFunction
+from bayesnet import DiscreteRandomVariable
 
 
 class Cluster(DiscreteRandomVariable):
-    def __init__(self, name: str, sources: Sequence[int], sample: int):
+    def __init__(self, name: str, sources: Sequence[int], sample: int,
+                 forward: np.ndarray = None):
         """A source cluster
 
         An instance of the Cluster class represents a group of current
@@ -16,6 +17,7 @@ class Cluster(DiscreteRandomVariable):
             name: The name of the cluster.
             sources: The source ids that are contained in the cluster.
             sample: The sample number of the cluster.
+            forward: The forward operator.
 
         Raises:
             TypeError if the name is not a String.
@@ -54,12 +56,18 @@ class Cluster(DiscreteRandomVariable):
                              'to 0.')
         self._sample = sample
 
+        if forward is None:
+            forward = np.eye(self.nb_sources)
+
         # Add default values for the priors.
+        sub_matrix = forward[:, self.sources]
         self._priors = (
             GaussianPrior(np.zeros((self.nb_sources,)),
-                          0.1 * np.eye(self.nb_sources)),
+                          0.1 * np.eye(self.nb_sources),
+                          sub_matrix),
             GaussianPrior(np.ones((self.nb_sources,)),
-                          0.1 * np.eye(self.nb_sources)))
+                          0.1 * np.eye(self.nb_sources),
+                          sub_matrix))
 
     @property
     def name(self) -> str:
@@ -88,7 +96,8 @@ class Cluster(DiscreteRandomVariable):
 
 
 class GaussianPrior(object):
-    def __init__(self, mean: Sequence, variance: Sequence):
+    def __init__(self, mean: Sequence, variance: Sequence,
+                 forward: np.ndarray):
         """Gaussian prior on source intensities
 
         The cimem.GaussianPrior class represents the Gaussian priors on the
@@ -98,7 +107,21 @@ class GaussianPrior(object):
             mean: The mean of each source of the cluster. Must be
                 convertible to an array of floats with a shape of (N,).
             variance: The variance of the sources of the cluster. Must be
-            convertible to an array of floats with a shape of (N, N).
+                convertible to an array of floats with a shape of (N, N).
+            forward: The forward operator.
+
+        Raises:
+            TypeError if the mean cannot be converted to an array of floats.
+            ValueError if the mean is not a 1D array.
+            TypeError if the variance cannot be converted to an array of
+                floats.
+            ValueError if the variance is not a 2D array with a shape matching
+                the mean.
+            TypeError if the forward operator cannot be converted to an
+                array of floats.
+            ValueError if the forward operator is not a 2D array.
+            ValueError if the shape of the forward operator does not match the
+                shape of the mean.
 
         """
 
@@ -128,14 +151,33 @@ class GaussianPrior(object):
                              '({} != {}).'
                              .format(mean.shape[0], variance.shape[0]))
 
+        try:
+            forward = np.array(forward, np.float64)
+        except (TypeError, ValueError):
+            raise TypeError('The forward operator must be convertible to an'
+                            'array of floats.')
+
+        if forward.ndim != 2:
+            raise ValueError('The forward operator must be a 2D array.')
+
+        if forward.shape[1] != mean.shape[0]:
+            raise ValueError('The forward operator must have the same number '
+                             'of columns as the length of the mean '
+                             '({} != {}).'
+                             .format(forward.shape[1], mean.shape[0]))
+
         self._mean = mean
         self._variance = variance
+        self._data_mean = np.dot(forward, mean)
+        self._data_variance = np.dot(np.dot(forward, variance), forward.T)
+        self._forward = forward
 
-    def __call__(self, lagrange: np.ndarray):
-        """Evaluates the prior at the Lagrange multipliers
+    def partition(self, lagrange: np.ndarray) -> Tuple[float, np.ndarray]:
+        """Evaluates the partition function of the prior
 
-        Evaluates the prior at the Lagrange multipliers and returns both its
-        value and its gradient divided by the value.
+        Evaluates the partition function of the prior at the Lagrange
+        multipliers and returns both its value and its gradient divided by the
+        value.
 
         For a Gaussian prior, this is:
 
@@ -148,7 +190,8 @@ class GaussianPrior(object):
         multiplier.
 
         Args:
-            lagrange: The Lagrange multipliers where the prior is evaluated.
+            lagrange: The Lagrange multipliers where the partition
+                function of the prior is evaluated.
 
         """
 
@@ -157,3 +200,54 @@ class GaussianPrior(object):
                        0.5 * np.dot(lagrange, temp))
 
         return value, self._mean + temp
+
+    def data_partition(self, lagrange: np.ndarray) -> Tuple[float, np.ndarray]:
+        """Evaluates the data partition function of the prior
+
+        Evaluates the data partition function of the prior at the Lagrange
+        multipliers and returns both its value and its gradient divided by the
+        value.
+
+        For a Gaussian prior, this is:
+
+            value = exp(L^t * G * m + 0.5 * L^t * G * v * G^t * L)
+
+            gradient = (G * m + v * G^t * L) *
+                        exp(L^t * G * m + 0.5 * L^t * G * v * G^t * L)
+                        / value
+                     = G * m + v * G^t * L
+
+        where m in the mean, v is the variance, G is the forward operator, and
+        L is the Lagrange multiplier.
+
+        Args:
+            lagrange: The Lagrange multipliers where the data partition
+                function of the prior is evaluated.
+
+        """
+
+        temp = np.dot(self._data_variance, lagrange)
+        value = np.exp(np.dot(lagrange, self._data_mean) +
+                       0.5 * np.dot(lagrange, temp))
+
+        return value, self._data_mean + temp
+
+    def derivative(self, lagrange):
+        """Evaluates the derivative of the prior
+
+        Evaluates the derivative of the prior at the Lagrange multipliers. For
+        a Gaussian prior, this is
+
+            value = m + v * G^t * L
+
+        where m in the mean, v is the variance, G is the forward operator, and
+        L is the Lagrange multiplier.
+
+        Args:
+            lagrange: The Lagrange multipliers where the derivative of the
+                prior is evaluated.
+
+        """
+
+        xi = np.dot(self._forward.T, lagrange)
+        return self._mean + np.dot(self._variance, xi)

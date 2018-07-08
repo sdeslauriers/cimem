@@ -41,7 +41,8 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster]) \
         gradients = np.zeros((nb_states, len(lagrange)))
         i = 0
         for cluster, evidence_table in zip(clusters, evidence_tables):
-            values, gradient = zip(*(p(lagrange) for p in cluster.priors))
+            values, gradient = zip(*(p.data_partition(lagrange)
+                                     for p in cluster.priors))
             normalization = np.sum(values)
             gradients[i:i + len(cluster), :] = gradient
             i += len(cluster)
@@ -102,7 +103,7 @@ def reconstruct_source_intensities(
 
         # Compute the source intensities of the cluster.
         for i, prior in enumerate(cluster.priors):
-            _, cluster_intensities = prior(lagrange)
-            intensities[cluster.sources] += posterior[i] * cluster_intensities
+            prior_intensities = prior.derivative(lagrange)
+            intensities[cluster.sources] += posterior[i] * prior_intensities
 
     return intensities
