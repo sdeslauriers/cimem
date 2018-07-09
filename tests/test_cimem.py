@@ -16,7 +16,12 @@ class TestSolve(unittest.TestCase):
         source_intensities = np.full((nb_samples,), 1.5)
 
         # The model is a single cluster with one source.
-        clusters = [cimem.core.Cluster('A', [0], 0)]
+        forward = np.eye(1)
+        priors = (
+            cimem.core.GaussianPrior([0], [[0.1]], forward),
+            cimem.core.GaussianPrior([1], [[0.1]], forward)
+        )
+        clusters = [cimem.core.Cluster('A', [0], priors, 0)]
 
         # Solve the MEM problem and reconstruct the source intensity.
         lagrange, marginals = cimem.solve(source_intensities, clusters)
@@ -31,7 +36,12 @@ class TestSolve(unittest.TestCase):
         source_intensities = np.full((nb_samples,), 1.0)
 
         # The model is a single cluster with two sources.
-        clusters = [cimem.core.Cluster('A', [0, 1], 0)]
+        forward = np.eye(nb_samples)
+        priors = (
+            cimem.core.GaussianPrior([0, 0], 0.1 * np.eye(2), forward),
+            cimem.core.GaussianPrior([1, 1], 0.1 * np.eye(2), forward)
+        )
+        clusters = [cimem.core.Cluster('A', [0, 1], priors, 0)]
 
         # Solve the MEM problem and reconstruct the source intensities.
         lagrange, marginals = cimem.solve(source_intensities, clusters)
@@ -48,7 +58,11 @@ class TestSolve(unittest.TestCase):
         data = np.dot(forward, source_intensities)
 
         # The model is a single cluster with two sources.
-        clusters = [cimem.core.Cluster('A', [0, 1], 0, forward)]
+        priors = (
+            cimem.core.GaussianPrior([0, 0], 0.1 * np.eye(2), forward),
+            cimem.core.GaussianPrior([1, 1], 0.1 * np.eye(2), forward)
+        )
+        clusters = [cimem.core.Cluster('A', [0, 1], priors, 0)]
 
         # Solve the MEM problem and reconstruct the source intensity.
         lagrange, marginals = cimem.solve(data, clusters)
@@ -65,9 +79,17 @@ class TestSolve(unittest.TestCase):
         data = np.dot(forward, source_intensities)
 
         # The model is a single cluster with two sources.
+        priors_cluster_1 = (
+            cimem.core.GaussianPrior([0], 0.1 * np.eye(1), forward[:, 0:1]),
+            cimem.core.GaussianPrior([1], 0.1 * np.eye(1), forward[:, 0:1])
+        )
+        priors_cluster_2 = (
+            cimem.core.GaussianPrior([0], 0.1 * np.eye(1), forward[:, 1:]),
+            cimem.core.GaussianPrior([1], 0.1 * np.eye(1), forward[:, 1:])
+        )
         clusters = [
-            cimem.core.Cluster('A', [0], 0, forward),
-            cimem.core.Cluster('B', [1], 0, forward)
+            cimem.core.Cluster('A', [0], priors_cluster_1, 0),
+            cimem.core.Cluster('B', [1], priors_cluster_2, 0)
         ]
 
         # Solve the MEM problem and reconstruct the source intensity.

@@ -6,8 +6,8 @@ from bayesnet import DiscreteRandomVariable
 
 
 class Cluster(DiscreteRandomVariable):
-    def __init__(self, name: str, sources: Sequence[int], sample: int,
-                 forward: np.ndarray = None):
+    def __init__(self, name: str, sources: Sequence[int],
+                 priors: Sequence['GaussianPrior'], sample: int):
         """A source cluster
 
         An instance of the Cluster class represents a group of current
@@ -16,8 +16,9 @@ class Cluster(DiscreteRandomVariable):
         Args:
             name: The name of the cluster.
             sources: The source ids that are contained in the cluster.
+            priors: A sequence of priors that defines the behavior of the
+                cluster.
             sample: The sample number of the cluster.
-            forward: The forward operator.
 
         Raises:
             TypeError if the name is not a String.
@@ -56,18 +57,15 @@ class Cluster(DiscreteRandomVariable):
                              'to 0.')
         self._sample = sample
 
-        if forward is None:
-            forward = np.eye(self.nb_sources)
+        try:
+            priors = tuple(priors)
+        except TypeError:
+            raise TypeError('The priors must be and iterable of priors.')
 
-        # Add default values for the priors.
-        sub_matrix = forward[:, self.sources]
-        self._priors = (
-            GaussianPrior(np.zeros((self.nb_sources,)),
-                          0.1 * np.eye(self.nb_sources),
-                          sub_matrix),
-            GaussianPrior(np.ones((self.nb_sources,)),
-                          0.1 * np.eye(self.nb_sources),
-                          sub_matrix))
+        if not all(isinstance(p, GaussianPrior) for p in priors):
+            raise TypeError('The priors must be instances of GaussianPrior.')
+
+        self._priors = tuple(priors)
 
     @property
     def name(self) -> str:

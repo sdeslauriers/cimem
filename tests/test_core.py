@@ -11,22 +11,35 @@ class TestCluster(unittest.TestCase):
     def test_init(self):
         """Test the __init__ method"""
 
-        cluster = cimem.core.Cluster('test', [0, 1, 2], 0)
+        priors = (
+            cimem.core.GaussianPrior([0, 0, 0], 0.1 * np.eye(3), np.eye(3)),
+            cimem.core.GaussianPrior([1, 1, 1], 0.1 * np.eye(3), np.eye(3))
+        )
+        cluster = cimem.core.Cluster('test', [0, 1, 2], priors, 0)
         self.assertEqual(cluster.name, 'test')
         np.testing.assert_array_almost_equal(cluster.sources, [0, 1, 2])
 
         # The name must be a string.
-        self.assertRaises(TypeError, cimem.core.Cluster, 1, [0, 1, 2], 0)
+        self.assertRaises(TypeError, cimem.core.Cluster,
+                          1, [0, 1, 2], priors, 0)
 
         # The sources must be convertible to an array of ints and have 1D.
-        self.assertRaises(TypeError, cimem.core.Cluster, 'test', 'abc', 0)
-        self.assertRaises(ValueError, cimem.core.Cluster, 'test', [[0, 1]], 0)
+        self.assertRaises(TypeError, cimem.core.Cluster,
+                          'test', 'abc', priors, 0)
+        self.assertRaises(ValueError, cimem.core.Cluster,
+                          'test', [[0, 1]], priors, 0)
 
         # The sample number must be a positive integer.
         self.assertRaises(TypeError, cimem.core.Cluster,
-                          'test', [0, 1, 2], 'a')
+                          'test', [0, 1, 2], priors, 'a')
         self.assertRaises(ValueError, cimem.core.Cluster,
-                          'test', [0, 1, 2], -2)
+                          'test', [0, 1, 2], priors, -2)
+
+        # The prior must be an iterable of GaussianPrior.
+        self.assertRaises(TypeError, cimem.core.Cluster,
+                          'test', [0, 1, 2], [0, 1, 2], 2)
+        self.assertRaises(TypeError, cimem.core.Cluster,
+                          'test', [0, 1, 2], priors[0], 2)
 
 
 class TestGaussianPrior(unittest.TestCase):
