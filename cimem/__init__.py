@@ -52,8 +52,9 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster]) \
 
         marginals.update()
 
+        # Compute the MEM cost.
         entropy = -np.dot(lagrange, data)
-        entropy += np.log(marginals[clusters[0]].normalization)
+        entropy += np.log(marginals.normalization)
 
         weights = [p for c in clusters for p in marginals[c].probabilities]
         gradient = -data

@@ -55,3 +55,23 @@ class TestSolve(unittest.TestCase):
         intensities = cimem.reconstruct_source_intensities(
             marginals, clusters, nb_sources, lagrange)
         np.testing.assert_array_almost_equal(intensities, source_intensities)
+
+    def test_two_independent_clusters(self):
+        """Test using two independent clusters"""
+
+        nb_sources = 2
+        source_intensities = np.array([-1.0, 2.0])
+        forward = np.eye(nb_sources)
+        data = np.dot(forward, source_intensities)
+
+        # The model is a single cluster with two sources.
+        clusters = [
+            cimem.core.Cluster('A', [0], 0, forward),
+            cimem.core.Cluster('B', [1], 0, forward)
+        ]
+
+        # Solve the MEM problem and reconstruct the source intensity.
+        lagrange, marginals = cimem.solve(data, clusters)
+        intensities = cimem.reconstruct_source_intensities(
+            marginals, clusters, nb_sources, lagrange)
+        np.testing.assert_array_almost_equal(intensities, source_intensities)
