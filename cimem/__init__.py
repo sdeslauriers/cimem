@@ -27,6 +27,14 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster]) \
 
     """
 
+    if data.ndim == 1:
+        data = data[:, None]
+
+    # Flatten the data.
+    nb_sensors, nb_samples = data.shape
+    flat_data = data.ravel('F')
+    sensors = np.arange(nb_sensors)
+
     # For each cluster, add an evidence table.
     evidence_tables = [ProbabilityMassFunction([c]) for c in clusters]
     nb_states = np.sum([len(c) for c in clusters])
@@ -38,31 +46,37 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster]) \
 
         # Update the evidence and marginals for the current Lagrange
         # multipliers.
-        gradients = np.zeros((nb_states, len(lagrange)))
+        gradients = np.zeros((nb_states, nb_sensors))
+        locations = np.zeros((nb_states, nb_sensors), dtype=int)
         i = 0
         for cluster, evidence_table in zip(clusters, evidence_tables):
-            values, gradient = zip(*(p.data_partition(lagrange)
+            location = sensors + nb_sensors * cluster.sample
+            values, gradient = zip(*(p.data_partition(lagrange[location])
                                      for p in cluster.priors))
-            normalization = np.sum(values)
+
             gradients[i:i + len(cluster), :] = gradient
+            locations[i:i + len(cluster), :] = location
             i += len(cluster)
 
+            normalization = np.sum(values)
             evidence_table.probabilities = values / normalization
             evidence_table.normalization = normalization
 
         marginals.update()
 
         # Compute the MEM cost.
-        entropy = -np.dot(lagrange, data)
+        entropy = -np.dot(lagrange, flat_data)
         entropy += np.log(marginals.normalization)
 
         weights = [p for c in clusters for p in marginals[c].probabilities]
-        gradient = -data
-        gradient += np.sum(np.array(weights)[:, None] * gradients, 0)
+        weighted_gradients = np.array(weights)[:, None] * gradients
+        gradient = -flat_data
+        for location, cluster_gradient in zip(locations, weighted_gradients):
+            gradient[location] += cluster_gradient
 
         return entropy, gradient
 
-    res = minimize(cost, np.zeros_like(data),
+    res = minimize(cost, np.zeros_like(flat_data),
                    jac=True,
                    options={'gtol': 1e-6, 'maxiter': 200},
                    method='CG')
@@ -74,7 +88,8 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster]) \
 
 
 def reconstruct_source_intensities(
-        marginals: Marginals, clusters: Sequence[Cluster], nb_samples: int,
+        marginals: Marginals, clusters: Sequence[Cluster],
+        nb_sensors: int, nb_sources: int, nb_samples: int,
         lagrange: np.ndarray) -> np.ndarray:
     """Reconstructs the source intensities
 
@@ -85,6 +100,8 @@ def reconstruct_source_intensities(
     Args:
         marginals: The marginals for each variable of the Bayesian network.
         clusters: The clusters used to spatially regularize the problem.
+        nb_sensors: The number of sensors of the data.
+        nb_sources: The number of sources of the model.
         nb_samples: The number of samples of the data.
         lagrange: The Lagrange multipliers where the sources are
             reconstructed. Usually those returned by the solve function.
@@ -95,8 +112,9 @@ def reconstruct_source_intensities(
     """
 
     # Initialize the source intensities.
-    intensities = np.zeros((nb_samples,))
+    intensities = np.zeros((nb_sources, nb_samples))
 
+    sensors = np.arange(nb_sensors)
     for cluster in clusters:
 
         # Compute the posterior of the cluster.
@@ -104,7 +122,9 @@ def reconstruct_source_intensities(
 
         # Compute the source intensities of the cluster.
         for i, prior in enumerate(cluster.priors):
-            prior_intensities = prior.derivative(lagrange)
-            intensities[cluster.sources] += posterior[i] * prior_intensities
+            location = sensors + nb_sensors * cluster.sample
+            prior_intensities = prior.derivative(lagrange[location])
+            intensities[cluster.sources, cluster.sample] += \
+                posterior[i] * prior_intensities
 
     return intensities
