@@ -5,6 +5,8 @@ import numpy as np
 import cimem
 import cimem.core
 
+from bayesnet import ProbabilityMassFunction
+
 
 class TestSolve(unittest.TestCase):
     """Test the cimem.solve function"""
@@ -133,3 +135,83 @@ class TestSolve(unittest.TestCase):
         intensities = cimem.reconstruct_source_intensities(
             marginals, clusters, nb_sensors, nb_sources, nb_samples, lagrange)
         np.testing.assert_array_almost_equal(intensities, source_intensities)
+
+    def test_solve_vs_pinv(self):
+        """Test the solve method by comparing it to the pseudoinverse"""
+
+        nb_sensors = 32
+        nb_sources = 32
+        nb_samples = 1
+
+        # Build a simple problem.
+        forward = np.random.randn(nb_sensors, nb_sources)
+        source_intensities = np.random.randn(nb_sources, nb_samples)
+        source_intensities[nb_sources // 2:] = 0
+        measurements = np.dot(forward, source_intensities)
+
+        # A single Gaussian prior for all sources. This makes to solution
+        # equal to the minimum norm solution.
+        priors = (
+            cimem.core.GaussianPrior(np.zeros((nb_sources,)),
+                                     np.zeros((nb_sources, nb_sources)),
+                                     forward),
+            cimem.core.GaussianPrior(np.zeros((nb_sources,)),
+                                     np.eye(nb_sources), forward)
+        )
+        clusters = [
+            cimem.core.Cluster('all-sources', range(nb_sources), priors, 0)]
+
+        lagrange, marginals = cimem.solve(measurements, clusters)
+        recovered_cimem = cimem.reconstruct_source_intensities(
+            marginals, clusters, nb_sensors, nb_sources, nb_samples, lagrange)
+
+        # The pseudo inverse solution.
+        pseudoinverse = np.linalg.pinv(forward)
+        recovered_pinv = np.dot(pseudoinverse, measurements)
+
+        # The solution should fit the measurements.
+        np.testing.assert_array_almost_equal(
+            measurements, np.dot(forward, recovered_cimem))
+
+        # The solutions should be almost identical.
+        np.testing.assert_array_almost_equal(
+            recovered_cimem, recovered_pinv, 5)
+
+    def test_add_pmfs(self):
+        """Test using additional pmfs"""
+
+        nb_sensors = 32
+        nb_sources = 32
+        nb_samples = 1
+
+        # Build a simple problem.
+        forward = np.random.randn(nb_sensors, nb_sources)
+        source_intensities = np.random.randn(nb_sources, nb_samples)
+        measurements = np.dot(forward, source_intensities)
+
+        # A single Gaussian prior for all sources. This makes to solution
+        # equal to the minimum norm solution.
+        priors = (
+            cimem.core.GaussianPrior(np.zeros((nb_sources,)),
+                                     np.zeros((nb_sources, nb_sources)),
+                                     forward),
+            cimem.core.GaussianPrior(np.zeros((nb_sources,)),
+                                     np.eye(nb_sources), forward)
+        )
+        clusters = [
+            cimem.core.Cluster('all-sources', range(nb_sources), priors, 0)]
+
+        # Add pmfs which forces activity.
+        pmfs = [ProbabilityMassFunction(clusters, [0.0, 1.0])]
+
+        lagrange, marginals = cimem.solve(measurements, clusters, pmfs)
+        recovered_cimem = cimem.reconstruct_source_intensities(
+            marginals, clusters, nb_sensors, nb_sources, nb_samples, lagrange)
+
+        # The solution should fit the measurements.
+        np.testing.assert_array_almost_equal(
+            measurements, np.dot(forward, recovered_cimem), 3)
+
+        # The cluster must be fully active.
+        np.testing.assert_array_almost_equal(
+            marginals[clusters[0]].probabilities, [0.0, 1.0])

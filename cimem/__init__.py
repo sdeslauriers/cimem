@@ -9,7 +9,8 @@ from bayesnet.junction import Marginals
 from cimem.core import Cluster
 
 
-def solve(data: np.ndarray, clusters: Sequence[Cluster]) \
+def solve(data: np.ndarray, clusters: Sequence[Cluster],
+          pmfs: Sequence[ProbabilityMassFunction] = None) \
         -> Tuple[np.ndarray, Marginals]:
     """Solves the inverse problem using CIMEM
 
@@ -19,6 +20,9 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster]) \
     Args:
         data: The M/EEG data in a 1D numpy array of floats.
         clusters: The source clusters used to spatially regularize the problem.
+        pmfs: Other probability mass table to take into account when fitting
+            the data. This is where additional priors are included into the
+            problem.
 
     Returns:
         lagrange: The optimal Lagrange multipliers.
@@ -30,6 +34,9 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster]) \
     if data.ndim == 1:
         data = data[:, None]
 
+    if pmfs is None:
+        pmfs = []
+
     # Flatten the data.
     nb_sensors, nb_samples = data.shape
     flat_data = data.ravel('F')
@@ -40,7 +47,7 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster]) \
     nb_states = np.sum([len(c) for c in clusters])
 
     # Compute the marginals.
-    marginals = Marginals(evidence_tables)
+    marginals = Marginals(pmfs + evidence_tables)
 
     def cost(lagrange):
 
@@ -78,7 +85,7 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster]) \
 
     res = minimize(cost, np.zeros_like(flat_data),
                    jac=True,
-                   options={'gtol': 1e-6, 'maxiter': 200},
+                   options={'gtol': 1e-6},
                    method='CG')
 
     # Update the marginals at the optimal solution.
