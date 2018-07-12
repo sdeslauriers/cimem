@@ -1,3 +1,8 @@
+import json
+import logging
+import logging.config
+import os
+
 from typing import Sequence, Tuple
 
 import numpy as np
@@ -7,6 +12,13 @@ from bayesnet import ProbabilityMassFunction
 from bayesnet.junction import Marginals
 
 from cimem.core import Cluster
+
+
+# Load logging configuration.
+config_file = os.path.join(os.path.dirname(__file__),
+                           '..', 'config', 'logging.json')
+logging.config.dictConfig(json.load(open(config_file, 'rt')))
+logger = logging.getLogger(__name__)
 
 
 def solve(data: np.ndarray, clusters: Sequence[Cluster],
@@ -47,6 +59,7 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster],
     nb_states = np.sum([len(c) for c in clusters])
 
     # Compute the marginals.
+    logger.info('Computing marginals.')
     marginals = Marginals(pmfs + evidence_tables)
 
     def cost(lagrange):
@@ -83,6 +96,7 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster],
 
         return entropy, gradient
 
+    logger.info('Optimizing cost function.')
     res = minimize(cost, np.zeros_like(flat_data),
                    jac=True,
                    options={'gtol': 1e-6},
@@ -91,6 +105,7 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster],
     # Update the marginals at the optimal solution.
     cost(res.x)
 
+    logger.info('Done.')
     return res.x, marginals
 
 

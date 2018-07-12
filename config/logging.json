@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "formatters": {
+    "simple": {
+      "format": "%(asctime)s - %(message)s",
+      "datefmt": "%H:%M:%S"
+    }
+  },
+  "handlers": {
+    "base": {
+      "class": "logging.StreamHandler",
+      "formatter": "simple"
+    }
+  },
+  "loggers": {
+    "cimem": {
+      "level": "WARNING",
+      "handlers": ["base"]
+    }
+  }
+}
