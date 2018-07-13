@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 
 
 def solve(data: np.ndarray, clusters: Sequence[Cluster],
-          pmfs: Sequence[ProbabilityMassFunction] = None) \
+          pmfs: Sequence[ProbabilityMassFunction] = None,
+          covariance: np.ndarray = None) \
         -> Tuple[np.ndarray, Marginals]:
     """Solves the inverse problem using CIMEM
 
@@ -48,6 +49,9 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster],
 
     if pmfs is None:
         pmfs = []
+
+    if covariance is None:
+        covariance = np.zeros((data.size, data.size))
 
     # Flatten the data.
     nb_sensors, nb_samples = data.shape
@@ -85,12 +89,13 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster],
         marginals.update()
 
         # Compute the MEM cost.
-        entropy = -np.dot(lagrange, flat_data)
+        temp = np.dot(covariance, lagrange)
+        entropy = 0.5 * np.dot(lagrange, temp) - np.dot(lagrange, flat_data)
         entropy += np.log(marginals.normalization)
 
         weights = [p for c in clusters for p in marginals[c].probabilities]
         weighted_gradients = np.array(weights)[:, None] * gradients
-        gradient = -flat_data
+        gradient = temp - flat_data
         for location, cluster_gradient in zip(locations, weighted_gradients):
             gradient[location] += cluster_gradient
 
