@@ -92,6 +92,10 @@ class Cluster(DiscreteRandomVariable):
         """Returns the source ids of the cluster"""
         return self._sources
 
+    def __repr__(self) -> str:
+        """String representation of the cluster"""
+        return '{}.{}'.format(self.name, self.sample)
+
 
 class GaussianPrior(object):
     def __init__(self, mean: Sequence, variance: Sequence,
