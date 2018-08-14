@@ -1,5 +1,4 @@
 import json
-import logging
 import logging.config
 import os
 
@@ -36,6 +35,9 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster],
         pmfs: Other probability mass table to take into account when fitting
             the data. This is where additional priors are included into the
             problem.
+        covariance: The noise covariance of the data with a shape of
+            (data.size, data.size). If not provided, defaults to an all zero
+            matrix.
 
     Returns:
         lagrange: The optimal Lagrange multipliers.
