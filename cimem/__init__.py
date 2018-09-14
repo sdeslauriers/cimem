@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 
 def solve(data: np.ndarray, clusters: Sequence[Cluster],
           pmfs: Sequence[ProbabilityMassFunction] = None,
-          covariance: np.ndarray = None) \
+          covariance: np.ndarray = None,
+          gradient_tolerance: float = 1e-6) \
         -> Tuple[np.ndarray, Marginals]:
     """Solves the inverse problem using CIMEM
 
@@ -38,6 +39,7 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster],
         covariance: The noise covariance of the data with a shape of
             (data.size, data.size). If not provided, defaults to an all zero
             matrix.
+        gradient_tolerance: The gradient norm tolerance for termination.
 
     Returns:
         lagrange: The optimal Lagrange multipliers.
@@ -106,7 +108,7 @@ def solve(data: np.ndarray, clusters: Sequence[Cluster],
     logger.info('Optimizing cost function.')
     res = minimize(cost, np.zeros_like(flat_data),
                    jac=True,
-                   options={'gtol': 1e-6},
+                   options={'gtol': gradient_tolerance},
                    method='CG')
 
     # Update the marginals at the optimal solution.
