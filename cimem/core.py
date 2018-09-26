@@ -30,7 +30,7 @@ class Cluster(DiscreteRandomVariable):
         """
 
         # Use the cluster name as its symbol and clusters are on or off.
-        super().__init__(name, (0, 1))
+        super().__init__(name, tuple(range(len(priors))))
 
         if not isinstance(name, str):
             raise TypeError('The name of the cluster must be a string, not {}.'
